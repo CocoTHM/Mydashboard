@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
+import { JwtModule } from '@nestjs/jwt';
 import { VmController } from './vm.controller';
 import { VmService } from './vm.service';
 import { VmGateway } from './vm.gateway';
@@ -13,6 +14,7 @@ import { VmProviderFactory } from './providers/vm-provider.factory';
 
 @Module({
   imports: [
+    JwtModule.register({}),
     BullModule.registerQueue({
       name: 'vm-operations',
     }),
