@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { VM, VMStatus } from '@prisma/client';
 import { IVMProvider } from './vm-provider.interface';
 import { VMMetrics } from '../dto/vm.dto';
-import Compute from '@google-cloud/compute';
+const { Compute } = require('@google-cloud/compute');
 
 @Injectable()
 export class GcpService implements IVMProvider {

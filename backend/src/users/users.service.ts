@@ -10,7 +10,7 @@ export class UsersService {
     return this.prisma.user.create({ data });
   }
 
-  async findAll(): Promise<User[]> {
+  async findAll(): Promise<Partial<User>[]> {
     return this.prisma.user.findMany({
       select: {
         id: true,
@@ -22,9 +22,6 @@ export class UsersService {
         isActive: true,
         createdAt: true,
         updatedAt: true,
-        githubId: false,
-        accessToken: false,
-        refreshToken: false,
       },
     });
   }
