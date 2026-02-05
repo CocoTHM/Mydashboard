@@ -1,0 +1,344 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USERS & AUTH ====================
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  username      String?   @unique
+  name          String?
+  avatar        String?
+  githubId      String?   @unique
+  accessToken   String?   // Chiffré
+  refreshToken  String?   // Chiffré
+  role          UserRole  @default(USER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  expenses      Expense[]
+  tasks         Task[]
+  roadmaps      Roadmap[]
+  tools         Tool[]
+  vms           VM[]
+  vmPermissions VMPermission[]
+  
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// ==================== EXPENSES ====================
+model Expense {
+  id          String          @id @default(uuid())
+  title       String
+  amount      Float
+  category    ExpenseCategory
+  date        DateTime
+  description String?
+  tags        String[]
+  recurring   Boolean         @default(false)
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  
+  @@index([userId, date])
+  @@map("expenses")
+}
+
+enum ExpenseCategory {
+  FOOD
+  TRANSPORT
+  HOUSING
+  ENTERTAINMENT
+  HEALTH
+  EDUCATION
+  TECH
+  SUBSCRIPTION
+  OTHER
+}
+
+// ==================== TASKS ====================
+model Task {
+  id          String       @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  deadline    DateTime?
+  tags        String[]
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  completedAt DateTime?
+  
+  @@index([userId, status])
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  ARCHIVED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ==================== ROADMAPS ====================
+model Roadmap {
+  id          String    @id @default(uuid())
+  title       String
+  domain      String    // dev, perso, business
+  description String?
+  color       String?
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps       Step[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([userId, domain])
+  @@map("roadmaps")
+}
+
+model Step {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  status      StepStatus @default(NOT_STARTED)
+  order       Int
+  dueDate     DateTime?
+  roadmapId   String
+  roadmap     Roadmap    @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  @@index([roadmapId, order])
+  @@map("steps")
+}
+
+enum StepStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// ==================== TOOLS ====================
+model Tool {
+  id          String     @id @default(uuid())
+  name        String
+  type        ToolType
+  url         String?
+  description String?
+  icon        String?
+  category    String?
+  isFavorite  Boolean    @default(false)
+  metadata    Json?
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  @@index([userId, type])
+  @@map("tools")
+}
+
+enum ToolType {
+  SOFTWARE
+  WEBSITE
+  CLOUD_SERVICE
+  VM
+  API
+  OTHER
+}
+
+// ==================== VM MANAGEMENT ====================
+model VM {
+  id            String         @id @default(uuid())
+  name          String
+  provider      VMProvider
+  status        VMStatus       @default(STOPPED)
+  ipAddress     String?
+  dnsName       String?
+  os            String?
+  osVersion     String?
+  vcpus         Int?
+  ramMb         Int?
+  diskGb        Int?
+  tags          String[]
+  description   String?
+  
+  // Provider specific IDs
+  instanceId    String?        // AWS instance-id, Azure VM ID, etc.
+  region        String?
+  zone          String?
+  
+  // Credentials (chiffrés)
+  credentials   Json?          // { username, password/key, port, etc }
+  
+  // Metrics et monitoring
+  lastMetrics   Json?          // { cpu, ram, disk, network }
+  lastCheckedAt DateTime?
+  
+  // Access URLs
+  sshCommand    String?
+  rdpUrl        String?
+  vncUrl        String?
+  consoleUrl    String?
+  
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions   VMPermission[]
+  logs          VMLog[]
+  
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  @@index([userId, provider])
+  @@index([status])
+  @@map("vms")
+}
+
+enum VMProvider {
+  AWS_EC2
+  AZURE_VM
+  GCP_COMPUTE
+  PROXMOX
+  VMWARE
+  VIRTUALBOX
+  HYPER_V
+  KVM
+  OTHER
+}
+
+enum VMStatus {
+  RUNNING
+  STOPPED
+  PENDING
+  STARTING
+  STOPPING
+  RESTARTING
+  ERROR
+  UNKNOWN
+}
+
+// Permissions granulaires pour les VM
+model VMPermission {
+  id        String           @id @default(uuid())
+  vmId      String
+  vm        VM               @relation(fields: [vmId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      VMPermissionRole
+  createdAt DateTime         @default(now())
+  
+  @@unique([vmId, userId])
+  @@map("vm_permissions")
+}
+
+enum VMPermissionRole {
+  VIEWER    // Voir uniquement
+  OPERATOR  // Démarrer/arrêter
+  ADMIN     // Contrôle total
+}
+
+// Logs des actions VM
+model VMLog {
+  id        String       @id @default(uuid())
+  vmId      String
+  vm        VM           @relation(fields: [vmId], references: [id], onDelete: Cascade)
+  action    VMAction
+  status    String       // success, error, pending
+  message   String?
+  metadata  Json?
+  createdAt DateTime     @default(now())
+  
+  @@index([vmId, createdAt])
+  @@map("vm_logs")
+}
+
+enum VMAction {
+  START
+  STOP
+  RESTART
+  CREATE
+  DELETE
+  UPDATE
+  CONNECT
+  METRICS_UPDATE
+}
+
+// ==================== GITHUB INTEGRATION ====================
+model GitHubRepo {
+  id            String   @id @default(uuid())
+  githubId      Int      @unique
+  name          String
+  fullName      String
+  description   String?
+  url           String
+  private       Boolean
+  language      String?
+  stars         Int      @default(0)
+  forks         Int      @default(0)
+  openIssues    Int      @default(0)
+  userId        String
+  lastSyncAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([userId])
+  @@map("github_repos")
+}
+
+model GitHubAction {
+  id          String   @id @default(uuid())
+  repoId      String
+  workflowId  Int
+  name        String
+  status      String   // success, failure, in_progress
+  conclusion  String?
+  runNumber   Int
+  htmlUrl     String
+  createdAt   DateTime @default(now())
+  
+  @@index([repoId, status])
+  @@map("github_actions")
+}
+
+// ==================== PROVIDER CONFIGS ====================
+// Configuration chiffrée pour chaque provider de VM
+model ProviderConfig {
+  id            String     @id @default(uuid())
+  userId        String
+  provider      VMProvider
+  name          String     // Nom donné par l'utilisateur
+  credentials   Json       // Chiffré: keys, tokens, passwords
+  config        Json?      // Configuration spécifique (region, endpoints, etc)
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@unique([userId, provider, name])
+  @@map("provider_configs")
+}
